@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: ai-banking-assistant
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ai_banking_assistant}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:Allah-110292$$}
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: ${SERVER_PORT:8080}
