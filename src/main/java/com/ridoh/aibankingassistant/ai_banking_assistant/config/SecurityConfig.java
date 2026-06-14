@@ -6,6 +6,7 @@ import com.ridoh.aibankingassistant.ai_banking_assistant.security.JwtAuthenticat
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -42,9 +43,15 @@ public class SecurityConfig {
                         .accessDeniedHandler(jwtAccessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/swagger-ui.html").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/accounts").hasRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/transactions/deposit").hasRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/transactions/withdraw").hasRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/transactions/transfer").hasRole("USER")
+                        .requestMatchers("/api/v1/transactions/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/v1/accounts/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
