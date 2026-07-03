@@ -1,5 +1,15 @@
 spring:
+  config:
+    activate:
+      on-profile: dev
+
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
+
     show-sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE

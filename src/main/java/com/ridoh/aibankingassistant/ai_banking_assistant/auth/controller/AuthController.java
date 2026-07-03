@@ -1,9 +1,6 @@
 package com.ridoh.aibankingassistant.ai_banking_assistant.auth.controller;
 
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.AdminRegisterRequest;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.AuthResponse;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.LoginRequest;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.RegisterRequest;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.*;
 import com.ridoh.aibankingassistant.ai_banking_assistant.auth.service.AuthService;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -40,5 +37,11 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        AuthResponse response = authService.refreshToken(request);
+        return ResponseEntity.ok(ApiResponse.success("Access token refreshed successfully", response));
     }
 }

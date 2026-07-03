@@ -1,9 +1,7 @@
 package com.ridoh.aibankingassistant.ai_banking_assistant.auth.service;
 
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.AdminRegisterRequest;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.AuthResponse;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.LoginRequest;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.RegisterRequest;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.*;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.entity.RefreshToken;
 import com.ridoh.aibankingassistant.ai_banking_assistant.config.AdminProperties;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.exception.ConflictException;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.exception.ForbiddenException;
@@ -32,14 +30,22 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final AdminProperties adminProperties;
+    private final RefreshTokenService refreshTokenService;
 
     @Override
     @Transactional
     public AuthResponse registerUser(RegisterRequest request) {
         User savedUser = createUser(request.getFullName(), request.getEmail(), request.getPassword(), Role.USER);
-        String token = jwtService.generateToken(savedUser);
+        String accessToken = jwtService.generateToken(savedUser);
 
-        return buildAuthResponse(savedUser, token);
+        RefreshToken refreshToken =
+                refreshTokenService.createRefreshToken(savedUser);
+
+        return buildAuthResponse(
+                savedUser,
+                accessToken,
+                refreshToken.getToken()
+        );
     }
 
     @Override
@@ -48,13 +54,20 @@ public class AuthServiceImpl implements AuthService {
         // ADMIN can only be assigned through this guarded registration path.
         validateAdminSecret(request.getAdminSecret());
         User savedUser = createUser(request.getFullName(), request.getEmail(), request.getPassword(), Role.ADMIN);
-        String token = jwtService.generateToken(savedUser);
+        String accessToken = jwtService.generateToken(savedUser);
 
-        return buildAuthResponse(savedUser, token);
+        RefreshToken refreshToken =
+                refreshTokenService.createRefreshToken(savedUser);
+
+        return buildAuthResponse(
+                savedUser,
+                accessToken,
+                refreshToken.getToken()
+        );
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
@@ -62,9 +75,37 @@ public class AuthServiceImpl implements AuthService {
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-        String token = jwtService.generateToken(user);
+        String accessToken = jwtService.generateToken(user);
 
-        return buildAuthResponse(user, token);
+        RefreshToken refreshToken =
+                refreshTokenService.createRefreshToken(user);
+
+        return buildAuthResponse(
+                user,
+                accessToken,
+                refreshToken.getToken()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public AuthResponse refreshToken(RefreshTokenRequest request) {
+
+        RefreshToken refreshToken =
+                refreshTokenService.verifyRefreshToken(
+                        request.getRefreshToken()
+                );
+
+        User user = refreshToken.getUser();
+
+        String accessToken =
+                jwtService.generateToken(user);
+
+        return buildAuthResponse(
+                user,
+                accessToken,
+                refreshToken.getToken()
+        );
     }
 
     private User createUser(String fullName, String email, String rawPassword, Role role) {
@@ -91,9 +132,15 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    private AuthResponse buildAuthResponse(User user, String token) {
+    private AuthResponse buildAuthResponse(
+            User user,
+            String accessToken,
+            String refreshToken
+    ) {
+
         return AuthResponse.builder()
-                .accessToken(token)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .tokenType(TOKEN_TYPE)
                 .userId(user.getId())
                 .fullName(user.getFullName())

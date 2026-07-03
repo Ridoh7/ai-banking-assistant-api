@@ -2,16 +2,20 @@ package com.ridoh.aibankingassistant.ai_banking_assistant.common.exception;
 
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.dto.ErrorResponse;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.dto.ValidationError;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -42,6 +46,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ErrorResponse> handleBadRequestException(
             BadRequestException ex,
+            HttpServletRequest request
+    ) {
+        ErrorResponse errorResponse = ErrorResponse.of(
+                ex.getMessage(),
+                HttpStatus.BAD_REQUEST.value(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(MissingIdempotencyKeyException.class)
+    public ResponseEntity<ErrorResponse> handleMissingIdempotencyKeyException(
+            MissingIdempotencyKeyException ex,
             HttpServletRequest request
     ) {
         ErrorResponse errorResponse = ErrorResponse.of(
@@ -113,6 +131,38 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
+    @ExceptionHandler(DuplicateIdempotencyKeyException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicateIdempotencyKeyException(
+            DuplicateIdempotencyKeyException ex,
+            HttpServletRequest request
+    ) {
+        ErrorResponse errorResponse = ErrorResponse.of(
+                ex.getMessage(),
+                HttpStatus.CONFLICT.value(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+
+    @ExceptionHandler({
+            ConcurrentTransactionException.class,
+            OptimisticLockException.class,
+            ObjectOptimisticLockingFailureException.class
+    })
+    public ResponseEntity<ErrorResponse> handleConcurrentTransactionException(
+            RuntimeException ex,
+            HttpServletRequest request
+    ) {
+        ErrorResponse errorResponse = ErrorResponse.of(
+                "Another transaction modified this account. Please retry.",
+                HttpStatus.CONFLICT.value(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ErrorResponse> handleForbiddenException(
             ForbiddenException ex,
@@ -147,12 +197,16 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request
     ) {
+
+        log.error("Unexpected exception", ex);
+
         ErrorResponse errorResponse = ErrorResponse.of(
                 "An unexpected error occurred",
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 request.getRequestURI()
         );
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(errorResponse);
     }
 }

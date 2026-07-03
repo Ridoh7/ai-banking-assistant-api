@@ -1,9 +1,6 @@
 package com.ridoh.aibankingassistant.ai_banking_assistant.auth.service;
 
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.AdminRegisterRequest;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.AuthResponse;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.LoginRequest;
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.RegisterRequest;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.*;
 
 public interface AuthService {
 
@@ -12,4 +9,6 @@ public interface AuthService {
     AuthResponse registerAdmin(AdminRegisterRequest request);
 
     AuthResponse login(LoginRequest request);
+
+    AuthResponse refreshToken(RefreshTokenRequest request);
 }

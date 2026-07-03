@@ -6,7 +6,7 @@ import java.util.Optional;
 
 import com.ridoh.aibankingassistant.ai_banking_assistant.indempotency.entity.IdempotencyKey;
 import com.ridoh.aibankingassistant.ai_banking_assistant.indempotency.repository.IdempotencyKeyRepository;
-import com.ridoh.aibankingassistant.ai_banking_assistant.indempotency.service.IdempotencyService;
+import com.ridoh.aibankingassistant.ai_banking_assistant.indempotency.util.RequestHashUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -24,19 +24,22 @@ public class IdempotencyServiceImpl implements IdempotencyService {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean exists(String idempotencyKey) {
-        return idempotencyKeyRepository.existsByIdempotencyKey(idempotencyKey);
-    }
+    public <T> Optional<T> findStoredResponse(
+            String idempotencyKey,
+            String endpoint,
+            Object request,
+            Class<T> responseType
+    ) {
 
-    @Override
-    @Transactional(readOnly = true)
-    public Optional<ApiResponse<?>> findStoredResponse(String idempotencyKey, String endpoint, Object request) {
         String requestHash = requestHashUtil.generateHash(request);
 
         return idempotencyKeyRepository.findByIdempotencyKey(idempotencyKey)
                 .map(storedKey -> {
                     validateSameRequest(storedKey, endpoint, requestHash);
-                    return responseSerializationService.deserialize(storedKey.getResponseBody());
+                    return responseSerializationService.deserializeData(
+                            storedKey.getResponseBody(),
+                            responseType
+                    );
                 });
     }
 
