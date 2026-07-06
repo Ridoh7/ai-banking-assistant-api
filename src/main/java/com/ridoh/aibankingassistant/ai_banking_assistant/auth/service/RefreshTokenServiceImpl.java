@@ -56,6 +56,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         RefreshToken refreshToken = refreshTokenRepository.findByToken(token)
                 .orElseThrow(() -> new ForbiddenException("Invalid refresh token"));
 
+        revokeRefreshToken(refreshToken);
+    }
+
+    @Override
+    @Transactional
+    public void revokeRefreshToken(RefreshToken refreshToken) {
+
         refreshToken.setRevoked(true);
 
         refreshTokenRepository.save(refreshToken);

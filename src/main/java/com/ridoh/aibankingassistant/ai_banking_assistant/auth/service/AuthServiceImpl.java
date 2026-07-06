@@ -87,24 +87,29 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
-    @Transactional(readOnly = true)
     @Override
+    @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest request) {
 
-        RefreshToken refreshToken =
-                refreshTokenService.verifyRefreshToken(
-                        request.getRefreshToken()
-                );
+        RefreshToken currentRefreshToken =
+                refreshTokenService.verifyRefreshToken(request.getRefreshToken());
 
-        User user = refreshToken.getUser();
+        User user = currentRefreshToken.getUser();
 
-        String accessToken =
-                jwtService.generateToken(user);
+        // Revoke the old refresh token
+        refreshTokenService.revokeRefreshToken(currentRefreshToken);
+
+        // Issue a new refresh token
+        RefreshToken newRefreshToken =
+                refreshTokenService.createRefreshToken(user);
+
+        // Generate a new access token
+        String accessToken = jwtService.generateToken(user);
 
         return buildAuthResponse(
                 user,
                 accessToken,
-                refreshToken.getToken()
+                newRefreshToken.getToken()
         );
     }
 
