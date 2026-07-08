@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class JwtService {
+
+    private static final String SESSION_ID_CLAIM = "sessionId";
 
     private final String jwtSecret;
     private final long jwtExpirationMs;
@@ -32,7 +35,19 @@ public class JwtService {
         return generateToken(new HashMap<>(), userDetails);
     }
 
-    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+    public String generateToken(UserDetails userDetails, UUID sessionId) {
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(SESSION_ID_CLAIM, sessionId.toString());
+
+        return generateToken(claims, userDetails);
+    }
+
+    public String generateToken(
+            Map<String, Object> extraClaims,
+            UserDetails userDetails
+    ) {
+
         Date issuedAt = new Date();
         Date expiresAt = new Date(issuedAt.getTime() + jwtExpirationMs);
 
@@ -45,13 +60,29 @@ public class JwtService {
                 .compact();
     }
 
-    public boolean validateToken(String token, UserDetails userDetails) {
+    public boolean validateToken(
+            String token,
+            UserDetails userDetails
+    ) {
+
         String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+
+        return username.equals(userDetails.getUsername())
+                && !isTokenExpired(token);
     }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    public UUID extractSessionId(String token) {
+
+        String sessionId = extractClaim(
+                token,
+                claims -> claims.get(SESSION_ID_CLAIM, String.class)
+        );
+
+        return UUID.fromString(sessionId);
     }
 
     private boolean isTokenExpired(String token) {
@@ -62,12 +93,18 @@ public class JwtService {
         return extractClaim(token, Claims::getExpiration);
     }
 
-    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+    private <T> T extractClaim(
+            String token,
+            Function<Claims, T> claimsResolver
+    ) {
+
         Claims claims = extractAllClaims(token);
+
         return claimsResolver.apply(claims);
     }
 
     private Claims extractAllClaims(String token) {
+
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
                 .build()
@@ -76,11 +113,18 @@ public class JwtService {
     }
 
     private SecretKey getSigningKey() {
+
         try {
+
             byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
+
             return Keys.hmacShaKeyFor(keyBytes);
+
         } catch (IllegalArgumentException ex) {
-            return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+
+            return Keys.hmacShaKeyFor(
+                    jwtSecret.getBytes(StandardCharsets.UTF_8)
+            );
         }
     }
 }

@@ -2,6 +2,7 @@ package com.ridoh.aibankingassistant.ai_banking_assistant.auth.service;
 
 import com.ridoh.aibankingassistant.ai_banking_assistant.auth.entity.RefreshToken;
 import com.ridoh.aibankingassistant.ai_banking_assistant.auth.repository.RefreshTokenRepository;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.session.dto.SessionInfo;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.exception.ForbiddenException;
 import com.ridoh.aibankingassistant.ai_banking_assistant.user.entity.User;
 import java.time.LocalDateTime;
@@ -20,11 +21,34 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     @Override
     @Transactional
-    public RefreshToken createRefreshToken(User user) {
+    public RefreshToken createRefreshToken(
+            User user,
+            SessionInfo sessionInfo) {
+
+        return createRefreshToken(
+                user,
+                sessionInfo,
+                UUID.randomUUID()
+        );
+    }
+
+    @Override
+    @Transactional
+    public RefreshToken createRefreshToken(
+            User user,
+            SessionInfo sessionInfo,
+            UUID sessionId) {
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .token(UUID.randomUUID().toString())
+                .sessionId(sessionId)
                 .user(user)
+                .deviceId(sessionInfo.getDeviceId())
+                .deviceClass(sessionInfo.getDeviceClass())
+                .deviceName(sessionInfo.getDeviceName())
+                .browser(sessionInfo.getBrowser())
+                .operatingSystem(sessionInfo.getOperatingSystem())
+                .ipAddress(sessionInfo.getIpAddress())
                 .expiresAt(LocalDateTime.now().plusDays(REFRESH_TOKEN_EXPIRY_DAYS))
                 .build();
 
@@ -45,6 +69,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         if (refreshToken.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new ForbiddenException("Refresh token has expired");
         }
+
+        refreshToken.setLastUsedAt(LocalDateTime.now());
 
         return refreshToken;
     }

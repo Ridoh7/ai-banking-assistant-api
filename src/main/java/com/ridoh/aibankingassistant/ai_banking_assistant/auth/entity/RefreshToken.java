@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -22,9 +23,32 @@ public class RefreshToken {
     @Column(nullable = false, unique = true, length = 512)
     private String token;
 
+    @Column(nullable = false, updatable = false)
+    private UUID sessionId;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id")
     private User user;
+
+    @Column(length = 255)
+    private String deviceId;
+
+    @Column(length = 255)
+    private String deviceName;
+
+    @Column(length = 100)
+    private String browser;
+
+    @Column(length = 100)
+    private String operatingSystem;
+
+    @Column(length = 100)
+    private String deviceClass;
+
+    @Column(length = 100)
+    private String ipAddress;
+
+    private LocalDateTime lastUsedAt;
 
     @Column(nullable = false)
     private LocalDateTime expiresAt;
@@ -38,6 +62,10 @@ public class RefreshToken {
 
     @PrePersist
     void onCreate() {
-        createdAt = LocalDateTime.now();
+
+        LocalDateTime now = LocalDateTime.now();
+
+        createdAt = now;
+        lastUsedAt = now;
     }
 }

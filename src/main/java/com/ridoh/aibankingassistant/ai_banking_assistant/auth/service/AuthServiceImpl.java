@@ -1,10 +1,15 @@
 package com.ridoh.aibankingassistant.ai_banking_assistant.auth.service;
 
-import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.*;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.AdminRegisterRequest;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.AuthResponse;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.LoginRequest;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.RefreshTokenRequest;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.dto.RegisterRequest;
 import com.ridoh.aibankingassistant.ai_banking_assistant.auth.entity.RefreshToken;
-import com.ridoh.aibankingassistant.ai_banking_assistant.config.AdminProperties;
+import com.ridoh.aibankingassistant.ai_banking_assistant.auth.session.service.SessionInfoService;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.exception.ConflictException;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.exception.ForbiddenException;
+import com.ridoh.aibankingassistant.ai_banking_assistant.config.AdminProperties;
 import com.ridoh.aibankingassistant.ai_banking_assistant.security.JwtService;
 import com.ridoh.aibankingassistant.ai_banking_assistant.user.entity.Role;
 import com.ridoh.aibankingassistant.ai_banking_assistant.user.entity.User;
@@ -31,15 +36,30 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final AdminProperties adminProperties;
     private final RefreshTokenService refreshTokenService;
+    private final SessionInfoService sessionInfoService;
 
     @Override
     @Transactional
     public AuthResponse registerUser(RegisterRequest request) {
-        User savedUser = createUser(request.getFullName(), request.getEmail(), request.getPassword(), Role.USER);
-        String accessToken = jwtService.generateToken(savedUser);
+
+        User savedUser = createUser(
+                request.getFullName(),
+                request.getEmail(),
+                request.getPassword(),
+                Role.USER
+        );
 
         RefreshToken refreshToken =
-                refreshTokenService.createRefreshToken(savedUser);
+                refreshTokenService.createRefreshToken(
+                        savedUser,
+                        sessionInfoService.getCurrentSession()
+                );
+
+        String accessToken =
+                jwtService.generateToken(
+                        savedUser,
+                        refreshToken.getSessionId()
+                );
 
         return buildAuthResponse(
                 savedUser,
@@ -51,13 +71,27 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse registerAdmin(AdminRegisterRequest request) {
-        // ADMIN can only be assigned through this guarded registration path.
+
         validateAdminSecret(request.getAdminSecret());
-        User savedUser = createUser(request.getFullName(), request.getEmail(), request.getPassword(), Role.ADMIN);
-        String accessToken = jwtService.generateToken(savedUser);
+
+        User savedUser = createUser(
+                request.getFullName(),
+                request.getEmail(),
+                request.getPassword(),
+                Role.ADMIN
+        );
 
         RefreshToken refreshToken =
-                refreshTokenService.createRefreshToken(savedUser);
+                refreshTokenService.createRefreshToken(
+                        savedUser,
+                        sessionInfoService.getCurrentSession()
+                );
+
+        String accessToken =
+                jwtService.generateToken(
+                        savedUser,
+                        refreshToken.getSessionId()
+                );
 
         return buildAuthResponse(
                 savedUser,
@@ -69,16 +103,29 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse login(LoginRequest request) {
+
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(
+                        request.getEmail(),
+                        request.getPassword()
+                )
         );
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-        String accessToken = jwtService.generateToken(user);
+                .orElseThrow(() ->
+                        new UsernameNotFoundException("User not found"));
 
         RefreshToken refreshToken =
-                refreshTokenService.createRefreshToken(user);
+                refreshTokenService.createRefreshToken(
+                        user,
+                        sessionInfoService.getCurrentSession()
+                );
+
+        String accessToken =
+                jwtService.generateToken(
+                        user,
+                        refreshToken.getSessionId()
+                );
 
         return buildAuthResponse(
                 user,
@@ -92,19 +139,26 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse refreshToken(RefreshTokenRequest request) {
 
         RefreshToken currentRefreshToken =
-                refreshTokenService.verifyRefreshToken(request.getRefreshToken());
+                refreshTokenService.verifyRefreshToken(
+                        request.getRefreshToken()
+                );
 
         User user = currentRefreshToken.getUser();
 
-        // Revoke the old refresh token
         refreshTokenService.revokeRefreshToken(currentRefreshToken);
 
-        // Issue a new refresh token
         RefreshToken newRefreshToken =
-                refreshTokenService.createRefreshToken(user);
+                refreshTokenService.createRefreshToken(
+                        user,
+                        sessionInfoService.getCurrentSession(),
+                        currentRefreshToken.getSessionId()
+                );
 
-        // Generate a new access token
-        String accessToken = jwtService.generateToken(user);
+        String accessToken =
+                jwtService.generateToken(
+                        user,
+                        newRefreshToken.getSessionId()
+                );
 
         return buildAuthResponse(
                 user,
@@ -113,7 +167,13 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
-    private User createUser(String fullName, String email, String rawPassword, Role role) {
+    private User createUser(
+            String fullName,
+            String email,
+            String rawPassword,
+            Role role
+    ) {
+
         if (userRepository.existsByEmail(email)) {
             throw new ConflictException("Email is already registered");
         }
@@ -129,8 +189,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void validateAdminSecret(String providedSecret) {
-        byte[] expected = adminProperties.secret().getBytes(StandardCharsets.UTF_8);
-        byte[] provided = providedSecret.getBytes(StandardCharsets.UTF_8);
+
+        byte[] expected =
+                adminProperties.secret().getBytes(StandardCharsets.UTF_8);
+
+        byte[] provided =
+                providedSecret.getBytes(StandardCharsets.UTF_8);
 
         if (!MessageDigest.isEqual(expected, provided)) {
             throw new ForbiddenException("Invalid admin secret");
