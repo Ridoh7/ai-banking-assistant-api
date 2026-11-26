@@ -3,6 +3,11 @@ package com.ridoh.aibankingassistant.ai_banking_assistant.transaction.service;
 import com.ridoh.aibankingassistant.ai_banking_assistant.account.entity.Account;
 import com.ridoh.aibankingassistant.ai_banking_assistant.account.entity.AccountStatus;
 import com.ridoh.aibankingassistant.ai_banking_assistant.account.repository.AccountRepository;
+import com.ridoh.aibankingassistant.ai_banking_assistant.audit.dto.internal.AuditEventCommand;
+import com.ridoh.aibankingassistant.ai_banking_assistant.audit.dto.internal.AuditResourceReference;
+import com.ridoh.aibankingassistant.ai_banking_assistant.audit.enums.AuditEventType;
+import com.ridoh.aibankingassistant.ai_banking_assistant.audit.enums.AuditResourceType;
+import com.ridoh.aibankingassistant.ai_banking_assistant.audit.service.AuditLogService;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.dto.ApiResponse;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.dto.IdempotentResult;
 import com.ridoh.aibankingassistant.ai_banking_assistant.common.exception.AccountClosedException;
@@ -48,6 +53,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final AccountAuthorizationService accountAuthorizationService;
     private final IdempotencyService idempotencyService;
+    private final AuditLogService auditLogService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Override
@@ -94,6 +100,8 @@ public class TransactionServiceImpl implements TransactionService {
                 request,
                 ApiResponse.success(DEPOSIT_SUCCESS_MESSAGE, response)
         );
+
+        recordTransactionSuccess(AuditEventType.DEPOSIT_SUCCESS, response.getId());
 
         return response;
     }
@@ -142,6 +150,8 @@ public class TransactionServiceImpl implements TransactionService {
                 request,
                 ApiResponse.success(WITHDRAWAL_SUCCESS_MESSAGE, response)
         );
+
+        recordTransactionSuccess(AuditEventType.WITHDRAWAL_SUCCESS, response.getId());
 
         return response;
     }
@@ -220,6 +230,18 @@ public class TransactionServiceImpl implements TransactionService {
                 ApiResponse.success(TRANSFER_SUCCESS_MESSAGE, response)
         );
 
+        log.info("Recording transfer audit event for debit transaction {}",
+                savedDebitTransaction.getId());
+        auditLogService.record(AuditEventCommand.builder()
+                .eventType(AuditEventType.TRANSFER_SUCCESS)
+                .primaryResource(AuditResourceReference.of(
+                        AuditResourceType.TRANSACTION, String.valueOf(savedDebitTransaction.getId())
+                ))
+                .secondaryResource(AuditResourceReference.of(
+                        AuditResourceType.TRANSACTION, String.valueOf(savedCreditTransaction.getId())
+                ))
+                .build());
+
         return response;
     }
 
@@ -234,6 +256,15 @@ public class TransactionServiceImpl implements TransactionService {
                 .sorted(Comparator.comparing(Transaction::getCreatedAt).reversed())
                 .map(this::toResponse)
                 .toList();
+    }
+
+    private void recordTransactionSuccess(AuditEventType eventType, Long transactionId) {
+        auditLogService.record(AuditEventCommand.builder()
+                .eventType(eventType)
+                .primaryResource(AuditResourceReference.of(
+                        AuditResourceType.TRANSACTION, String.valueOf(transactionId)
+                ))
+                .build());
     }
 
     private Account findAccountByNumber(String accountNumber) {
