@@ -125,6 +125,17 @@ Additional Features
 
 ---
 
+## Enterprise Audit Logging
+
+- Records authentication, session, and banking events in PostgreSQL.
+- Provides admin-only audit search and event details.
+- Records successful deposits, withdrawals, and transfers in the same
+  database transaction as the banking operation.
+- Links each transfer event to its debit and credit transaction IDs.
+- Prevents idempotent transfer replays from creating duplicate success events.
+
+---
+
 ## ⚙ Enterprise Backend Features
 
 - Layered Architecture
@@ -589,7 +600,6 @@ Lombok
 
 ## Phase 4 — Enterprise Banking 🚧
 
-- [ ] Audit Logging
 - [ ] Beneficiary Management
 - [ ] Daily Transfer Limits
 - [ ] Account Statements
@@ -880,7 +890,6 @@ The next milestones include:
 
 ## Banking
 
-- Audit Logging
 - Beneficiary Management
 - Scheduled Transfers
 - Standing Orders
